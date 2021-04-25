@@ -74,7 +74,7 @@ namespace triaxis.Data.Sqlite
                     {
                         schema(conUpgrade);
                         _logger?.LogInformation("Moving existing data");
-                        CopyData(Connection, _path, conUpgrade);
+                        CopyData(con, _path, conUpgrade);
                     }
 
                     con.Dispose();
