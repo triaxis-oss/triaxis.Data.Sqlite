@@ -79,7 +79,7 @@ namespace triaxis.Data.Sqlite
 
                     con.Dispose();
 
-                    _logger?.LogInformation("Replacing databse file with the upgraded one");
+                    _logger?.LogInformation("Replacing database file with the upgraded one");
                     File.Delete(_path);
                     File.Move(upgradePath, _path);
 
@@ -87,6 +87,16 @@ namespace triaxis.Data.Sqlite
                 }
 
                 _logger?.LogInformation("Database opened successfully");
+
+                con.EnableWriteAheadLogging();
+
+                if (_logger?.IsEnabled(LogLevel.Trace) == true)
+                {
+                    con.Trace = true;
+                    con.TimeExecution = true;
+                    con.Tracer = s => _logger.LogTrace(s);
+                }
+
                 Connection = con;
                 con = null;
             }
