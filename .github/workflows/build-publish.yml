@@ -1,0 +1,68 @@
+name: Build and Publish
+on:
+  - push
+  - workflow_dispatch
+
+defaults:
+  run:
+    working-directory: src
+
+jobs:
+  build:
+    name: Build
+    runs-on: macos-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: true
+
+    outputs:
+      is-release: ${{ steps.get-version.outputs.is-release }}
+      version: ${{ steps.get-version.outputs.version }}
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Set version
+        uses: triaxis-oss/dotnet-set-version@v1
+        id: get-version
+        with:
+          project: src/triaxis.Data.Sqlite/triaxis.Data.Sqlite.csproj
+
+      - name: Restore NuGet Packages
+        run: dotnet restore
+
+      - name: Build Release
+        if: steps.get-version.outputs.is-release == 'true'
+        run: msbuild /t:build "/p:Configuration=Release;ContinuousIntegrationBuild=true;DeterministicSourcePaths=true" /m
+
+      - name: Build Development
+        if: steps.get-version.outputs.is-release != 'true'
+        run: msbuild /t:build "/p:Configuration=Release;ContinuousIntegrationBuild=true;DeterministicSourcePaths=true;IncludeSymbolsInNuget=true" /m
+
+      - name: Upload Package Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: packages
+          path: src/triaxis.Data.Sqlite/bin/Release/*nupkg
+
+  publish-nuget:
+    name: Publish NuGet
+    runs-on: macos-latest
+    env:
+      DOTNET_NOLOGO: true
+    needs: build
+    steps:
+      - name: Fetch Package Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: packages
+          path: src
+
+      - name: Publish NuGet Packages
+        if: needs.build.outputs.is-release == 'true'
+        run: dotnet nuget push *.nupkg -s nuget.org -k ${{secrets.NUGET_API_KEY}} --skip-duplicate
+
+      - name: Publish GitHub Packages
+        if: needs.build.outputs.is-release != 'true'
+        run: dotnet nuget push *.nupkg -s https://${{github.actor}}@nuget.pkg.github.com/${{github.repository_owner}} -k ${{secrets.GITHUB_TOKEN}} --skip-duplicate
